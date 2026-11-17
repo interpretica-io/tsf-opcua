@@ -87,6 +87,43 @@ tapi_opcua_last_status(const tapi_opcua_conn *conn)
 
 /* ---- key-value parsing -------------------------------------------- */
 
+static int
+hexval(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/*
+ * Reverse ta_opcua_esc() in place: the agent percent-escapes '%', ',',
+ * '|', TAB, CR and LF in every field value so a record or line never
+ * breaks inside a value (an array like "Int32[3]:10,20,30" carries
+ * commas). Keys are not escaped; only values are unescaped here.
+ */
+static char *
+tapi_unesc(char *s)
+{
+    char *r = s;
+    char *w = s;
+
+    while (*r != '\0')
+    {
+        if (r[0] == '%' && hexval(r[1]) >= 0 && hexval(r[2]) >= 0)
+        {
+            *w++ = (char)(hexval(r[1]) * 16 + hexval(r[2]));
+            r += 3;
+        }
+        else
+        {
+            *w++ = *r++;
+        }
+    }
+    *w = '\0';
+    return s;
+}
+
 static void
 kv_add(tapi_opcua_kv *kv, const char *k, size_t klen, const char *v,
        size_t vlen)
@@ -94,7 +131,7 @@ kv_add(tapi_opcua_kv *kv, const char *k, size_t klen, const char *v,
     TE_REALLOC(kv->keys, (kv->n + 1) * sizeof(char *));
     TE_REALLOC(kv->vals, (kv->n + 1) * sizeof(char *));
     kv->keys[kv->n] = TE_STRNDUP(k, klen);
-    kv->vals[kv->n] = TE_STRNDUP(v, vlen);
+    kv->vals[kv->n] = tapi_unesc(TE_STRNDUP(v, vlen));
     kv->n++;
 }
 
