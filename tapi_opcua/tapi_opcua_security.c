@@ -48,7 +48,7 @@ tapi_opcua_report_add(tapi_opcua_report *report, tapi_opcua_severity severity,
     va_list ap;
     te_string d = TE_STRING_INIT;
 
-    report->items = TE_REALLOC(report->items,
+    TE_REALLOC(report->items,
                                (report->n + 1) * sizeof(*report->items));
     f = &report->items[report->n];
     f->severity = severity;
@@ -212,7 +212,8 @@ tapi_opcua_audit_endpoints(rcf_rpc_server *rpcs, const char *url,
     {
         tapi_opcua_report_add(report, TAPI_OPCUA_SEV_INFO,
                               "opcua.endpoint.not-assessed", url,
-                              "could not read endpoints: %r", rc);
+                              "could not read endpoints: %s",
+                              te_rc_err2str(rc));
         te_string_free(&eps);
         return rc;
     }

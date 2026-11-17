@@ -91,8 +91,8 @@ static void
 kv_add(tapi_opcua_kv *kv, const char *k, size_t klen, const char *v,
        size_t vlen)
 {
-    kv->keys = TE_REALLOC(kv->keys, (kv->n + 1) * sizeof(char *));
-    kv->vals = TE_REALLOC(kv->vals, (kv->n + 1) * sizeof(char *));
+    TE_REALLOC(kv->keys, (kv->n + 1) * sizeof(char *));
+    TE_REALLOC(kv->vals, (kv->n + 1) * sizeof(char *));
     kv->keys[kv->n] = TE_STRNDUP(k, klen);
     kv->vals[kv->n] = TE_STRNDUP(v, vlen);
     kv->n++;
@@ -553,7 +553,7 @@ tapi_opcua_read_many(tapi_opcua_conn *conn, const char *nodes,
     remember_fail(conn, &res);
     while ((rec = tapi_opcua_report_next(res.report.ptr, &off)) != NULL)
     {
-        *values = TE_REALLOC(*values, (*n + 1) * sizeof(**values));
+        TE_REALLOC(*values, (*n + 1) * sizeof(**values));
         value_from_record(rec, &(*values)[*n]);
         (*n)++;
         free(rec);
