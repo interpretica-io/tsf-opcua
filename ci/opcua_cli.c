@@ -89,14 +89,6 @@ count_records(const char *report)
     return n;
 }
 
-static void
-msleep(int ms)
-{
-    struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
-
-    nanosleep(&ts, NULL);
-}
-
 static int
 cmd_features(void)
 {
@@ -148,8 +140,6 @@ cmd_selftest(void)
             "kind=method\nname=Sum\nbehaviour=sum", &o);
     CHECK(rc == 0, "add Sum method");
     ta_opcua_out_clear(&o);
-
-    msleep(200);
 
     /* 2. Connect a client. */
     rc = ta_opcua_client_connect(endpoint,

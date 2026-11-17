@@ -124,12 +124,19 @@ method_fail(UA_Server *s, const UA_NodeId *sid, void *sctx,
 
 /* ---- server thread ------------------------------------------------ */
 
+/*
+ * The listen socket is opened by UA_Server_run_startup(), which the
+ * caller runs synchronously before this thread starts, so the server is
+ * already accepting connections when ta_opcua_server_start() returns and
+ * a client that connects immediately is not refused. This thread only
+ * pumps the event loop; run_shutdown() is done by the stop path after
+ * the thread has joined.
+ */
 static void *
 server_thread(void *arg)
 {
     ta_opcua_server *s = arg;
 
-    UA_Server_run_startup(s->ua);
     while (s->running)
     {
         pthread_mutex_lock(&s->lock);
@@ -141,7 +148,6 @@ server_thread(void *arg)
             nanosleep(&ts, NULL);
         }
     }
-    UA_Server_run_shutdown(s->ua);
     return NULL;
 }
 
@@ -241,10 +247,24 @@ ta_opcua_server_start(const char *params, ta_opcua_server **srv,
     s->ns = UA_Server_addNamespace(s->ua,
             ns != NULL && *ns != '\0' ? ns : "urn:tsf-opcua:sim");
 
+    /* Open the listen socket synchronously: when this call returns the
+     * server is accepting, so a client that connects at once is not
+     * refused. The thread then only pumps the event loop. */
+    st = UA_Server_run_startup(s->ua);
+    if (st != UA_STATUSCODE_GOOD)
+    {
+        UA_Server_delete(s->ua);
+        pthread_mutex_destroy(&s->lock);
+        free(s);
+        return out_err(out, TA_OPCUA_ECONN, "server startup: %s",
+                       UA_StatusCode_name(st));
+    }
+
     s->running = true;
     if (pthread_create(&s->thread, NULL, server_thread, s) != 0)
     {
         s->running = false;
+        UA_Server_run_shutdown(s->ua);
         UA_Server_delete(s->ua);
         pthread_mutex_destroy(&s->lock);
         free(s);
@@ -279,6 +299,9 @@ ta_opcua_server_stop(ta_opcua_server *s)
     {
         s->running = false;
         pthread_join(s->thread, NULL);
+        /* The thread no longer touches the server; shut the listen
+         * socket and sessions down now that it has joined. */
+        UA_Server_run_shutdown(s->ua);
     }
     if (s->ua != NULL)
         UA_Server_delete(s->ua);
