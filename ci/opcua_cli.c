@@ -247,6 +247,43 @@ cmd_selftest(void)
         ta_opcua_out_clear(&o);
     }
 
+    /* 9. Events: monitor the Server object, emit an event, collect it. */
+    {
+        ta_opcua_sub *esub = NULL;
+        uint32_t eitem = 0;
+
+        rc = ta_opcua_sub_create(cli, "publishing_interval_ms=100", &esub, &o);
+        ta_opcua_out_clear(&o);
+        if (esub != NULL)
+        {
+            rc = ta_opcua_monitor(esub, "i=2253",
+                    "kind=event\nfields=Severity,Message", &eitem, &o);
+            CHECK(rc == 0, "event monitored item created");
+            if (rc != 0)
+                dump("event monitor", &o, rc);
+            ta_opcua_out_clear(&o);
+
+            /* Drain any backlog. */
+            rc = ta_opcua_collect(esub, "min=0\ntimeout_ms=500", &o);
+            ta_opcua_out_clear(&o);
+
+            rc = ta_opcua_server_event(srv,
+                    "severity=500\nmessage=hello-event", &o);
+            CHECK(rc == 0, "server emits an event");
+            if (rc != 0)
+                dump("server event", &o, rc);
+            ta_opcua_out_clear(&o);
+
+            rc = ta_opcua_collect(esub, "min=1\ntimeout_ms=3000", &o);
+            CHECK(o.report != NULL && strstr(o.report, "hello-event") != NULL,
+                  "event received (report: %s)",
+                  o.report != NULL ? o.report : "(null)");
+            ta_opcua_out_clear(&o);
+            ta_opcua_sub_delete(esub, &o);
+            ta_opcua_out_clear(&o);
+        }
+    }
+
     ta_opcua_client_free(cli);
     ta_opcua_server_stop(srv);
 

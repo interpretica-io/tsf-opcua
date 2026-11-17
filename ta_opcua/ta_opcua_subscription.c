@@ -189,13 +189,17 @@ event_cb(UA_Client *ua, UA_UInt32 subId, void *subCtx, UA_UInt32 monId,
     buf_fieldf(&b, "recv_us", "%" PRIu64, ta_opcua_now_us());
     if (it != NULL)
     {
+        /* The event-fields map is in the same order as the select
+         * clauses we built from it->fields; its keys are the
+         * SimpleAttributeOperand print form ("/Message"), not the bare
+         * browse name, so match by position rather than by key. */
         for (i = 0; i < it->nfields; i++)
         {
-            UA_QualifiedName qn = UA_QUALIFIEDNAME(0, it->fields[i]);
-            const UA_Variant *v = UA_KeyValueMap_get(&fields, qn);
+            const UA_Variant *v = i < fields.mapSize ?
+                &fields.map[i].value : NULL;
             char *vs;
 
-            if (v == NULL)
+            if (v == NULL || v->type == NULL)
             {
                 buf_fieldf(&b, it->fields[i], "%s", "");
                 continue;
