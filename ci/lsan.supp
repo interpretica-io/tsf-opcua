@@ -1,0 +1,10 @@
+# LeakSanitizer suppressions for ci/opcua_cli.
+#
+# open62541's default configuration allocates a stdout logger
+# (UA_Log_Stdout_new) that it attaches to the client/server config and
+# shares with the EventLoop; the top-level handle is not freed on
+# delete. It is a small, fixed allocation inside the library under test's
+# dependency, not in tsf-opcua code, and does not grow per operation.
+# The real leak gate for tsf-opcua's own code is the Test Environment
+# suite (tsf-opcua-ts), whose agent library runs under ASan.
+leak:UA_Log_Stdout_new

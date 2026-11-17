@@ -1,0 +1,47 @@
+name: ci
+
+# The core of tsf-opcua includes no Test Environment header, so it
+# builds and runs on its own: ci/core-test.sh builds it with ASan/UBSan
+# against open62541 (built from source with the OpenSSL backend so the
+# encryption and certificate paths are exercised), then starts the
+# simulated server and drives a client against it - connect, discover,
+# browse, read, write, call a method, subscribe and collect a value
+# change. The TE glue, the RPCs and the engine TAPI are exercised by
+# tsf-opcua-ts.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools and OpenSSL
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake git ca-certificates pkg-config libssl-dev
+
+      - name: Build and install open62541 (OpenSSL backend)
+        run: |
+          set -eux
+          git clone --depth 1 -b v1.5.10 https://github.com/open62541/open62541.git /tmp/o62
+          cmake -S /tmp/o62 -B /tmp/o62/build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=ON \
+            -DUA_ENABLE_ENCRYPTION=OPENSSL \
+            -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON -DUA_ENABLE_HISTORIZING=ON \
+            -DUA_ENABLE_DISCOVERY=ON -DUA_NAMESPACE_ZERO=FULL \
+            -DUA_BUILD_EXAMPLES=OFF -DUA_BUILD_UNIT_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build /tmp/o62/build -j"$(nproc)"
+          sudo cmake --install /tmp/o62/build
+          sudo ldconfig
+
+      - name: Core contract tests (ASan/UBSan)
+        run: ./ci/core-test.sh
